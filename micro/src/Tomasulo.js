@@ -91,6 +91,7 @@ export default function Tomasulo() {
   const [refresh, setRefresh] = React.useState(false);
   const [vantaEffect, setVantaEffect] = React.useState(0)
   const myRef = React.useRef(null)
+
   React.useEffect(() => {
     if (!vantaEffect) {
       setVantaEffect(TOPOLOGY({
@@ -109,6 +110,13 @@ export default function Tomasulo() {
       if (vantaEffect) vantaEffect.destroy()
     }
   }, [vantaEffect])
+
+  React.useEffect(()=>{
+    if(!sessionStorage.getItem('refreshed')){
+      sessionStorage.setItem('refreshed', true)
+      window.location.reload();
+    }
+  }, [])
 
   const memoryCellChange = (e) => {
     memoryCell = e.target.value;
@@ -288,7 +296,7 @@ export default function Tomasulo() {
     for (var station of addData) {
       if (station.vj !== '' && station.vk !== '') {
         if (!station.start) {
-          station.start = cycle;
+          station.start = cycle+1;
         }
         else {
           if (station.start === cycle) {
@@ -402,8 +410,6 @@ export default function Tomasulo() {
         }
       }
     }// end of storeTable
-
-
   }
 
 

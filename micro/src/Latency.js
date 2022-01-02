@@ -26,6 +26,7 @@ export default class Latency extends Component {
   }
 
   componentDidMount() {
+    sessionStorage.removeItem('refreshed')
     this.vantaEffect = WAVES({
       el: this.vantaRef.current,
       THREE: THREE,
