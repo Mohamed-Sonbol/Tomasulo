@@ -5,11 +5,14 @@ import InputLabel from '@mui/material/InputLabel';
 import OutlinedInput from '@mui/material/OutlinedInput'
 import Button from '@mui/material/Button';
 import { Navigate } from 'react-router-dom'
+import TextareaAutosize from '@mui/material/TextareaAutosize';
+import Grid from '@mui/material/Grid';
 
 export default class Latency extends Component {
   state = {
     add_sub: '',
-    mul_div: '',
+    mul: '',
+    div: '',
     load: '',
     store: '',
     instructions: '',
@@ -22,7 +25,8 @@ export default class Latency extends Component {
 
   handleClick = () => {
     sessionStorage.setItem('add_sub', this.state.add_sub)
-    sessionStorage.setItem('mul_div', this.state.mul_div)
+    sessionStorage.setItem('mul', this.state.mul)
+    sessionStorage.setItem('div', this.state.div)
     sessionStorage.setItem('load', this.state.load)
     sessionStorage.setItem('store', this.state.store)
     sessionStorage.setItem('instructions', this.state.instructions)
@@ -34,7 +38,7 @@ export default class Latency extends Component {
 
   render() {
     return (
-      <div className="center">
+      <div align="center">
         <h1>Insert your latencies</h1>
         <br />
         <FormControl>
@@ -46,19 +50,23 @@ export default class Latency extends Component {
           />
         </FormControl>
 
-        <br />
-        <br />
-
         <FormControl>
-          <InputLabel>MUL/DIV</InputLabel>
+          <InputLabel>MUL</InputLabel>
           <OutlinedInput
-            name='mul_div'
-            value={this.state.mul_div}
+            name='mul'
+            value={this.state.mul}
             onChange={this.handleChange}
           />
         </FormControl>
-
         <br />
+        <FormControl>
+          <InputLabel>DIV</InputLabel>
+          <OutlinedInput
+            name='div'
+            value={this.state.div}
+            onChange={this.handleChange}
+          />
+        </FormControl>
         <br />
 
         <FormControl>
@@ -69,9 +77,6 @@ export default class Latency extends Component {
             onChange={this.handleChange}
           />
         </FormControl>
-
-        <br />
-        <br />
 
         <FormControl>
           <InputLabel>Store</InputLabel>
@@ -87,15 +92,15 @@ export default class Latency extends Component {
 
         <h1>Your Instructions</h1>
 
-        <FormControl>
-          <InputLabel>Instructions</InputLabel>
-          <OutlinedInput
+        <FormControl sx={{ minHeight: 100 }}>
+          <TextareaAutosize
+            placeholder="Instructions"
+            style={{ width: 435, height: 250 }}
             name='instructions'
             value={this.state.instructions}
             onChange={this.handleChange}
           />
         </FormControl>
-
         <br />
         <br />
 

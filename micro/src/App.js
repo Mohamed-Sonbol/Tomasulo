@@ -7,8 +7,8 @@ export default function App() {
     return (
       <div>
           <Routes>
-            <Route path="/" element={<Latency/>} />
-            <Route path="/Tomasulo" element={<Tomasulo/>} />
+            <Route exact path="/" element={<Latency/>} />
+            <Route exact path="/Tomasulo" element={<Tomasulo/>} />
           </Routes>
       </div>
     )
