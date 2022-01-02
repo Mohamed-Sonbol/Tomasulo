@@ -1,20 +1,32 @@
 import * as React from 'react';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import { Button } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import OutlinedInput from '@mui/material/OutlinedInput'
+import { styled, createTheme, ThemeProvider } from '@mui/material/styles';
+import TableCell, { tableCellClasses } from '@mui/material/TableCell';
+import Typography from '@mui/material/Typography';
+import TOPOLOGY from 'vanta/dist/vanta.topology.min'
+import * as p5 from 'p5'
 
 let cycle = 0;
 let initialregFile = [];
 let bus = [];
-let memory = Array(128).fill(5);
+let memory = Array(128).fill(0);
 
-let instructions = sessionStorage.getItem('instructions').split("\n");
+let memoryCell = '';
+
+let instructions = [];
+if (sessionStorage.getItem('instructions'))
+  instructions = sessionStorage.getItem('instructions').split("\n");
+
 let addLatency = Number(sessionStorage.getItem('add_sub'))
 let mulLatency = Number(sessionStorage.getItem('mul'))
 let divLatency = Number(sessionStorage.getItem('div'))
@@ -77,60 +89,83 @@ let storeData = [
 
 export default function Tomasulo() {
   const [refresh, setRefresh] = React.useState(false);
+  const [vantaEffect, setVantaEffect] = React.useState(0)
+  const myRef = React.useRef(null)
+  React.useEffect(() => {
+    if (!vantaEffect) {
+      setVantaEffect(TOPOLOGY({
+        el: myRef.current,
+        p5: p5,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        color: 0x61877,
+        backgroundColor: 0xffffff
+      }))
+    }
+    return () => {
+      if (vantaEffect) vantaEffect.destroy()
+    }
+  }, [vantaEffect])
+
+  const memoryCellChange = (e) => {
+    memoryCell = e.target.value;
+    setRefresh(!refresh);
+  }
 
   const next = () => {
     cycle += 1;
-    console.log(memory);
-    if (instructions.length > 0 ){
-    let current = instructions.shift();
-    let stall = false; //Logic ma3koos
-    let splitCurrent = current.split(' ');
+    if (instructions.length > 0) {
+      let current = instructions.shift();
+      let stall = false; //Logic ma3koos
+      let splitCurrent = current.split(' ');
+      switch (splitCurrent[0]) {
+        case "L.D": for (var i = 0; i < 3; i++) {
+          if (loadData[i].busy === 0) {
+            stall = issue(i, splitCurrent, "load");
+            break;
+          }
+        }; break;
+        case "S.D": for (var i = 0; i < 3; i++) {
+          if (storeData[i].busy === 0) {
+            stall = issue(i, splitCurrent, "store");
+            break;
+          }
+        }; break;
+        case "MUL.D": for (var i = 0; i < 2; i++) {
+          if (mulData[i].busy === 0) {
+            stall = issue(i, splitCurrent, "mul");
+            break;
+          }
+        }; break;
+        case "DIV.D": for (var i = 0; i < 2; i++) {
+          if (mulData[i].busy === 0) {
+            stall = issue(i, splitCurrent, "mul");
+            break;
+          }
+        }; break;
+        case "ADD.D": for (var i = 0; i < 3; i++) {
+          if (addData[i].busy === 0) {
+            stall = issue(i, splitCurrent, "add");
+            break;
+          }
+        }; break;
+        case "SUB.D": for (var i = 0; i < 3; i++) {
+          if (addData[i].busy === 0) {
+            stall = issue(i, splitCurrent, "add");
+            break;
+          }
+        }; break;
+        default: console.log("unknown instruction"); break;
+      }
 
-    switch (splitCurrent[0]) {
-      case "L.D": for (var i = 0; i < 3; i++) {
-        if (loadData[i].busy === 0) {
-          stall = issue(i, splitCurrent, "load");
-          break;
-        }
-      }; break;
-      case "S.D": for (var i = 0; i < 3; i++) {
-        if (storeData[i].busy === 0) {
-          stall = issue(i, splitCurrent, "store");
-          break;
-        }
-      }; break;
-      case "MUL.D": for (var i = 0; i < 2; i++) {
-        if (mulData[i].busy === 0) {
-          stall = issue(i, splitCurrent, "mul");
-          break;
-        }
-      }; break;
-      case "DIV.D": for (var i = 0; i < 2; i++) {
-        if (mulData[i].busy === 0) {
-          stall = issue(i, splitCurrent, "mul");
-          break;
-        }
-      }; break;
-      case "ADD.D": for (var i = 0; i < 3; i++) {
-        if (addData[i].busy === 0) {
-          stall = issue(i, splitCurrent, "add");
-          break;
-        }
-      }; break;
-      case "SUB.D": for (var i = 0; i < 3; i++) {
-        if (addData[i].busy === 0) {
-          stall = issue(i, splitCurrent, "add");
-          break;
-        }
-      }; break;
-      default: console.log("unknown instruction"); break;
-    }
+      if (!stall) {
+        instructions.unshift(current);
+      }
 
-    if (!stall) {
-      instructions.unshift(current);
-    }
-
-  }// end of fetch and decode 
+    }// end of fetch and decode 
     execute();
 
     announce();
@@ -139,16 +174,16 @@ export default function Tomasulo() {
   }
   const announce = () => {
     let a;   //announcement
-    if(bus.length > 0){
+    if (bus.length > 0) {
       a = bus.shift();
-      for (var station of mulData){
-        if(station.Qj === a.name){
+      for (var station of mulData) {
+        if (station.Qj === a.name) {
           station.Qj = '';
           station.vj = a.value;
         }
-        if(station.Qk === a.name){
+        if (station.Qk === a.name) {
           station.Qk = '';
-          station.vk = a.value ;
+          station.vk = a.value;
         }
         if (station.vj !== '' && station.vk !== '') {
           if (!station.start) {
@@ -156,14 +191,14 @@ export default function Tomasulo() {
           }
         }
       }
-      for (var station of addData){
-        if(station.Qj === a.name){
+      for (var station of addData) {
+        if (station.Qj === a.name) {
           station.Qj = '';
-          station.vj = a.value ;
+          station.vj = a.value;
         }
-        if(station.Qk === a.name){
+        if (station.Qk === a.name) {
           station.Qk = '';
-          station.vk = a.value ;
+          station.vk = a.value;
         }
         if (station.vj !== '' && station.vk !== '') {
           if (!station.start) {
@@ -171,20 +206,20 @@ export default function Tomasulo() {
           }
         }
       }
-      for (var reg of regfileData){
-        if(reg.Qi === a.name){
+      for (var reg of regfileData) {
+        if (reg.Qi === a.name) {
           reg.Qi = '0';
-          reg.value = a.value ;
+          reg.value = a.value;
         }
       }
-      for (var station of storeData){
-        if(station.Q === a.name){
+      for (var station of storeData) {
+        if (station.Q === a.name) {
           station.Q = '';
-          station.V = a.value ;
+          station.V = a.value;
         }
         if (station.V !== '') {
           if (!station.start) {
-            station.start = cycle + 1 ;
+            station.start = cycle + 1;
           }
         }
       }
@@ -203,8 +238,8 @@ export default function Tomasulo() {
             main[station.mainIndex].execution = station.start + " ..  ";
           }
           if (station.op === "MUL.D") {
-            if (cycle - station.start  === mulLatency - 1) {
-              main[station.mainIndex].execution += cycle ;
+            if (cycle - station.start === mulLatency - 1) {
+              main[station.mainIndex].execution += cycle;
             }
             else if (cycle - station.start === mulLatency) {
               bus.push({
@@ -253,7 +288,7 @@ export default function Tomasulo() {
     for (var station of addData) {
       if (station.vj !== '' && station.vk !== '') {
         if (!station.start) {
-          station.start = cycle ;
+          station.start = cycle;
         }
         else {
           if (station.start === cycle) {
@@ -265,7 +300,7 @@ export default function Tomasulo() {
             }
             else if (cycle - station.start === addLatency) {
               bus.push({
-                name: station.name,                
+                name: station.name,
                 mainIndex: station.mainIndex,
                 value: (station.vj + station.vk)
               })
@@ -283,7 +318,7 @@ export default function Tomasulo() {
           }
 
           else {
-            if (cycle - station.start  === addLatency - 1) {
+            if (cycle - station.start === addLatency - 1) {
               main[station.mainIndex].execution += cycle;
             }
             else if (cycle - station.start === addLatency) {
@@ -308,33 +343,33 @@ export default function Tomasulo() {
       }
     }// end of addTable
     for (var station of loadData) {
-      if(station.busy === 1){
-      if (!station.start) {
-        station.start = cycle + 1;
-      }
-      else {
-        if (station.start === cycle) {
-          main[station.mainIndex].execution = station.start + " ..  ";
+      if (station.busy === 1) {
+        if (!station.start) {
+          station.start = cycle + 1;
         }
-        if (cycle - station.start === loadLatency - 1) {
-          main[station.mainIndex].execution += cycle;
-        }
-        else if (cycle - station.start === loadLatency) {
-          bus.push({
-            name: station.name,
-            mainIndex: station.mainIndex,
-            value: memory[station.address]
-          })
+        else {
+          if (station.start === cycle) {
+            main[station.mainIndex].execution = station.start + " ..  ";
+          }
+          if (cycle - station.start === loadLatency - 1) {
+            main[station.mainIndex].execution += cycle;
+          }
+          else if (cycle - station.start === loadLatency) {
+            bus.push({
+              name: station.name,
+              mainIndex: station.mainIndex,
+              value: memory[station.address]
+            })
 
-          //(name, busy, address,start,mainIndex)
-          // 0, '', null, null
-          station.busy = 0;
-          station.address = '';
-          station.start = null;
-          station.mainIndex = null;
+            //(name, busy, address,start,mainIndex)
+            // 0, '', null, null
+            station.busy = 0;
+            station.address = '';
+            station.start = null;
+            station.mainIndex = null;
+          }
         }
       }
-    }
     } // end of loadTable
 
     for (var station of storeData) {
@@ -347,13 +382,13 @@ export default function Tomasulo() {
           if (station.start === cycle) {
             main[station.mainIndex].execution = station.start + " ..  ";
           }
-          if (cycle - station.start  === storeLatency- 1) {
+          if (cycle - station.start === storeLatency - 1) {
             main[station.mainIndex].execution += cycle;
           }
           else if (cycle - station.start === storeLatency) {
             memory[station.address] = station.V;
             bus.push({
-              mainIndex: station.mainIndex 
+              mainIndex: station.mainIndex
             })
             //(name, busy, address, V, Q,start,mainIndex)
             // ('S1', 0, '', '', '', null, null)
@@ -449,195 +484,250 @@ export default function Tomasulo() {
     return true;
   }
 
+  const StyledTableCell = styled(TableCell)(({ theme }) => ({
+    [`&.${tableCellClasses.head}`]: {
+      backgroundColor: theme.palette.common.black,
+      color: theme.palette.common.white,
+    },
+    [`&.${tableCellClasses.body}`]: {
+      fontSize: 14,
+    },
+  }));
+
+  const StyledTableRow = styled(TableRow)(({ theme }) => ({
+    '&:nth-of-type(odd)': {
+      backgroundColor: theme.palette.action.hover,
+    },
+    // hide last border
+    '&:last-child td, &:last-child th': {
+      border: 0,
+    },
+  }));
+  const theme = createTheme({
+    typography: {
+      fontFamily: [
+        '-apple-system',
+
+      ].join(','),
+    },
+  });
+
   return (
-    <div>
-      <h1>Cycle : {cycle}</h1>
-      <Grid container spacing={2}>
-        <TableContainer component={Paper}>
-          <Table sx={{ minWidth: 650 }} size="medium" aria-label="a dense table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Instruction</TableCell>
-                <TableCell>j</TableCell>
-                <TableCell>k</TableCell>
-                <TableCell>Issue</TableCell>
-                <TableCell>Execution</TableCell>
-                <TableCell>Write Back</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {main.map((row) => (
-                <TableRow
-                  key={row.issue}
-                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                >
-                  <TableCell>{row.instruction}</TableCell>
-                  <TableCell>{row.j}</TableCell>
-                  <TableCell>{row.k}</TableCell>
-                  <TableCell>{row.issue}</TableCell>
-                  <TableCell>{row.execution}</TableCell>
-                  <TableCell>{row.writeback}</TableCell>
+    <div ref={myRef} style = {{paddingTop: '1px', marginTop: '-8px', paddingLeft: '1px', marginLeft: '-8px' }}>
+      <br />
+      <ThemeProvider theme={theme}>
+        <Typography variant="h3" >
+          Cycle # {cycle}
+        </Typography>
+      </ThemeProvider>
+      <br />
+      <br />
+      <Grid container spacing={30}>
+        <Grid item xs={6} md={8}>
+          <TableContainer sx={{ maxWidth: 800, minHeight: 200 }} component={Paper}>
+            <Table sx={{ minWidth: 650 }} size="medium" aria-label="a dense table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Instruction</StyledTableCell>
+                  <StyledTableCell>j</StyledTableCell>
+                  <StyledTableCell>k</StyledTableCell>
+                  <StyledTableCell>Issue</StyledTableCell>
+                  <StyledTableCell>Execution</StyledTableCell>
+                  <StyledTableCell>Write Back</StyledTableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <br />
-        <br />
-        <TableContainer sx={{ maxWidth: 800, maxHeight: 170 }} component={Paper}>
-          <Table size="medium" aria-label="a dense table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Busy </TableCell>
-                <TableCell>OP </TableCell>
-                <TableCell>vj</TableCell>
-                <TableCell>vk </TableCell>
-                <TableCell>Qj </TableCell>
-                <TableCell>Qk</TableCell>
-                <TableCell>A </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {mulData.map((entry) => (
-                <TableRow
-                  key={entry.name}
-                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                >
-                  <TableCell>{entry.name}</TableCell>
-                  <TableCell>{entry.busy}</TableCell>
-                  <TableCell>{entry.op}</TableCell>
-                  <TableCell>{entry.vj}</TableCell>
-                  <TableCell>{entry.vk}</TableCell>
-                  <TableCell>{entry.Qj}</TableCell>
-                  <TableCell>{entry.Qk}</TableCell>
-                  <TableCell>{entry.A}</TableCell>
+              </TableHead>
+              <TableBody>
+                {main.map((row) => (
+                  <TableRow
+                    key={row.issue}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <StyledTableCell>{row.instruction}</StyledTableCell>
+                    <StyledTableCell>{row.j}</StyledTableCell>
+                    <StyledTableCell>{row.k}</StyledTableCell>
+                    <StyledTableCell>{row.issue}</StyledTableCell>
+                    <StyledTableCell>{row.execution}</StyledTableCell>
+                    <StyledTableCell>{row.writeback}</StyledTableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <br />
+          <br />
+          <TableContainer sx={{ maxWidth: 800, maxHeight: 170 }} component={Paper}>
+            <Table size="medium" aria-label="a dense table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Name</StyledTableCell>
+                  <StyledTableCell>Busy </StyledTableCell>
+                  <StyledTableCell>OP </StyledTableCell>
+                  <StyledTableCell>vj</StyledTableCell>
+                  <StyledTableCell>vk </StyledTableCell>
+                  <StyledTableCell>Qj </StyledTableCell>
+                  <StyledTableCell>Qk</StyledTableCell>
+                  <StyledTableCell>A </StyledTableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {mulData.map((entry) => (
+                  <TableRow
+                    key={entry.name}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <StyledTableCell>{entry.name}</StyledTableCell>
+                    <StyledTableCell>{entry.busy}</StyledTableCell>
+                    <StyledTableCell>{entry.op}</StyledTableCell>
+                    <StyledTableCell>{entry.vj}</StyledTableCell>
+                    <StyledTableCell>{entry.vk}</StyledTableCell>
+                    <StyledTableCell>{entry.Qj}</StyledTableCell>
+                    <StyledTableCell>{entry.Qk}</StyledTableCell>
+                    <StyledTableCell>{entry.A}</StyledTableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-        <br />
-        <br />
-        <TableContainer sx={{ maxWidth: 800, maxHeight: 245 }} component={Paper}>
-          <Table size="medium" aria-label="a dense table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Busy </TableCell>
-                <TableCell>OP </TableCell>
-                <TableCell>vj</TableCell>
-                <TableCell>vk </TableCell>
-                <TableCell>Qj </TableCell>
-                <TableCell>Qk</TableCell>
-                <TableCell>A </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {addData.map((entry) => (
-                <TableRow
-                  key={entry.name}
-                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                >
-                  <TableCell>{entry.name}</TableCell>
-                  <TableCell>{entry.busy}</TableCell>
-                  <TableCell>{entry.op}</TableCell>
-                  <TableCell>{entry.vj}</TableCell>
-                  <TableCell>{entry.vk}</TableCell>
-                  <TableCell>{entry.Qj}</TableCell>
-                  <TableCell>{entry.Qk}</TableCell>
-                  <TableCell>{entry.A}</TableCell>
+          <br />
+          <br />
+          <TableContainer sx={{ maxWidth: 800, maxHeight: 245 }} component={Paper}>
+            <Table size="medium" aria-label="a dense table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Name</StyledTableCell>
+                  <StyledTableCell>Busy </StyledTableCell>
+                  <StyledTableCell>OP </StyledTableCell>
+                  <StyledTableCell>vj</StyledTableCell>
+                  <StyledTableCell>vk </StyledTableCell>
+                  <StyledTableCell>Qj </StyledTableCell>
+                  <StyledTableCell>Qk</StyledTableCell>
+                  <StyledTableCell>A </StyledTableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {addData.map((entry) => (
+                  <TableRow
+                    key={entry.name}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <StyledTableCell>{entry.name}</StyledTableCell>
+                    <StyledTableCell>{entry.busy}</StyledTableCell>
+                    <StyledTableCell>{entry.op}</StyledTableCell>
+                    <StyledTableCell>{entry.vj}</StyledTableCell>
+                    <StyledTableCell>{entry.vk}</StyledTableCell>
+                    <StyledTableCell>{entry.Qj}</StyledTableCell>
+                    <StyledTableCell>{entry.Qk}</StyledTableCell>
+                    <StyledTableCell>{entry.A}</StyledTableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-        <br />
-        <br />
-        <TableContainer sx={{ maxWidth: 800, maxHeight: 350 }} component={Paper}>
-          <Table size="medium" aria-label="a dense table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Busy </TableCell>
-                <TableCell>Address </TableCell>
-                <TableCell>V</TableCell>
-                <TableCell>Q</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {storeData.map((entry) => (
-                <TableRow
-                  key={entry.name}
-                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                >
-                  <TableCell>{entry.name}</TableCell>
-                  <TableCell>{entry.busy}</TableCell>
-                  <TableCell>{entry.address}</TableCell>
-                  <TableCell>{entry.V}</TableCell>
-                  <TableCell>{entry.Q}</TableCell>
+          <br />
+          <br />
+          <TableContainer sx={{ maxWidth: 800, maxHeight: 350 }} component={Paper}>
+            <Table size="medium" aria-label="a dense table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Name</StyledTableCell>
+                  <StyledTableCell>Busy </StyledTableCell>
+                  <StyledTableCell>Address </StyledTableCell>
+                  <StyledTableCell>V</StyledTableCell>
+                  <StyledTableCell>Q</StyledTableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {storeData.map((entry) => (
+                  <TableRow
+                    key={entry.name}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <StyledTableCell>{entry.name}</StyledTableCell>
+                    <StyledTableCell>{entry.busy}</StyledTableCell>
+                    <StyledTableCell>{entry.address}</StyledTableCell>
+                    <StyledTableCell>{entry.V}</StyledTableCell>
+                    <StyledTableCell>{entry.Q}</StyledTableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-        <br />
-        <br />
-        <TableContainer sx={{ maxWidth: 800, maxHeight: 230 }} component={Paper}>
-          <Table size="medium" aria-label="a dense table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Busy </TableCell>
-                <TableCell>Address </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loadData.map((entry) => (
-                <TableRow
-                  key={entry.name}
-                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                >
-                  <TableCell>{entry.name}</TableCell>
-                  <TableCell>{entry.busy}</TableCell>
-                  <TableCell>{entry.address}</TableCell>
+          <br />
+          <br />
+          <TableContainer sx={{ maxWidth: 800, maxHeight: 230 }} component={Paper}>
+            <Table size="medium" aria-label="a dense table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Name</StyledTableCell>
+                  <StyledTableCell>Busy </StyledTableCell>
+                  <StyledTableCell>Address </StyledTableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {loadData.map((entry) => (
+                  <TableRow
+                    key={entry.name}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <StyledTableCell>{entry.name}</StyledTableCell>
+                    <StyledTableCell>{entry.busy}</StyledTableCell>
+                    <StyledTableCell>{entry.address}</StyledTableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <br />
+          <br />
+          <FormControl variant = 'filled'>
+            <InputLabel>Memory</InputLabel>
+            <OutlinedInput
+              value={memoryCell}
+              onChange={memoryCellChange}
+              placeholder='0 to 127'
+            />
+          </FormControl>
+          {Number(memoryCell) < memory.length && memoryCell !== '' && <p>Cell {memoryCell} : {memory[Number(memoryCell)]}</p>}
+          <br />
+          <br />
+          <br />
+          <Button onClick={next} variant='contained'>Next step</Button>
+
+        </Grid>
         <br />
         <br />
-        <TableContainer sx={{ maxWidth: 250 }} component={Paper}>
-          <Table size="medium" aria-label="a dense table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Register Number#</TableCell>
-                <TableCell>Value </TableCell>
-                <TableCell>Qi </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {regfileData.map((entry) => (
-                <TableRow
-                  key={entry.registerNumber}
-                  sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                >
-                  <TableCell>{entry.registerNumber}</TableCell>
-                  <TableCell>{entry.value}</TableCell>
-                  <TableCell>{entry.Qi}</TableCell>
+        <Grid item xs={6} md={4}>
+          <TableContainer sx={{ maxWidth: 250 }} component={Paper}>
+            <Table size="medium" aria-label="a dense table">
+              <TableHead>
+                <TableRow>
+                  <StyledTableCell>Register Number#</StyledTableCell>
+                  <StyledTableCell>Value </StyledTableCell>
+                  <StyledTableCell>Qi </StyledTableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {regfileData.map((entry) => (
+                  <StyledTableRow
+                    key={entry.registerNumber}
+                    sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                  >
+                    <StyledTableCell>{entry.registerNumber}</StyledTableCell>
+                    <StyledTableCell>{entry.value}</StyledTableCell>
+                    <StyledTableCell>{entry.Qi}</StyledTableCell>
+                  </StyledTableRow >
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Grid>
         <br />
         <br />
       </Grid>
-      <Button onClick={next}>Next step</Button>
+
 
     </div>
 

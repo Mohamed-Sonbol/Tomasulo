@@ -7,8 +7,14 @@ import Button from '@mui/material/Button';
 import { Navigate } from 'react-router-dom'
 import TextareaAutosize from '@mui/material/TextareaAutosize';
 import Grid from '@mui/material/Grid';
+import * as THREE from "three";
+import WAVES from "vanta/dist/vanta.waves.min.js";
 
 export default class Latency extends Component {
+  constructor() {
+    super();
+    this.vantaRef = React.createRef();
+  }
   state = {
     add_sub: '',
     mul: '',
@@ -19,6 +25,22 @@ export default class Latency extends Component {
     toSulo: false
   }
 
+  componentDidMount() {
+    this.vantaEffect = WAVES({
+      el: this.vantaRef.current,
+      THREE: THREE,
+      mouseControls: true,
+      touchControls: true,
+      minHeight: 753.00,
+      minWidth: 1536.00,
+      color: 0x5588
+    });
+  }
+  componentWillUnmount() {
+    if (this.vantaEffect) {
+      this.vantaEffect.destroy();
+    }
+  }
   handleChange = e => {
     this.setState({ [e.target.name]: e.target.value });
   }
@@ -38,74 +60,102 @@ export default class Latency extends Component {
 
   render() {
     return (
-      <div align="center">
-        <h1>Insert your latencies</h1>
-        <br />
-        <FormControl>
-          <InputLabel>ADD/SUB</InputLabel>
-          <OutlinedInput
-            name='add_sub'
-            value={this.state.add_sub}
-            onChange={this.handleChange}
-          />
-        </FormControl>
 
-        <FormControl>
-          <InputLabel>MUL</InputLabel>
-          <OutlinedInput
-            name='mul'
-            value={this.state.mul}
-            onChange={this.handleChange}
-          />
-        </FormControl>
-        <br />
-        <FormControl>
-          <InputLabel>DIV</InputLabel>
-          <OutlinedInput
-            name='div'
-            value={this.state.div}
-            onChange={this.handleChange}
-          />
-        </FormControl>
-        <br />
+      <div id="wrapper">
+        <div className='background' ref={this.vantaRef} style = {{paddingTop: '1px', marginTop: '-8px', paddingLeft: '1px', marginLeft: '-8px' }}>
+          <div align="center">
+            <h1>Insert your latencies</h1>
+            <br />
 
-        <FormControl>
-          <InputLabel>Load</InputLabel>
-          <OutlinedInput
-            name='load'
-            value={this.state.load}
-            onChange={this.handleChange}
-          />
-        </FormControl>
+            <Grid container rowSpacing={1} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+              <Grid item xs={6} md={12} container justifyContent="center" alignItems="center">
+                <Grid item>
+                  <FormControl sx={{ minWidth: 450 }}>
+                    <InputLabel>ADD/SUB</InputLabel>
+                    <OutlinedInput
+                      name='add_sub'
+                      value={this.state.add_sub}
+                      onChange={this.handleChange}
+                    />
+                  </FormControl>
+                </Grid>
+              </Grid>
 
-        <FormControl>
-          <InputLabel>Store</InputLabel>
-          <OutlinedInput
-            name='store'
-            value={this.state.store}
-            onChange={this.handleChange}
-          />
-        </FormControl>
+              <Grid item container justifyContent="center" alignItems="center">
+                <Grid item xs={1.8}>
+                  <FormControl>
+                    <InputLabel>MUL</InputLabel>
+                    <OutlinedInput
+                      name='mul'
+                      value={this.state.mul}
+                      onChange={this.handleChange}
+                    />
+                  </FormControl>
+                </Grid>
 
-        <br />
-        <br />
+                <Grid item xs={1.8}>
+                  <FormControl>
+                    <InputLabel>DIV</InputLabel>
+                    <OutlinedInput
+                      name='div'
+                      value={this.state.div}
+                      onChange={this.handleChange}
+                    />
+                  </FormControl>
+                </Grid>
+              </Grid>
 
-        <h1>Your Instructions</h1>
+              <Grid item container justifyContent="center" alignItems="center">
+                <Grid item xs={1.8}>
+                  <FormControl>
+                    <InputLabel>Load</InputLabel>
+                    <OutlinedInput
+                      name='load'
+                      value={this.state.load}
+                      onChange={this.handleChange}
+                    />
+                  </FormControl>
+                </Grid>
 
-        <FormControl sx={{ minHeight: 100 }}>
-          <TextareaAutosize
-            placeholder="Instructions"
-            style={{ width: 435, height: 250 }}
-            name='instructions'
-            value={this.state.instructions}
-            onChange={this.handleChange}
-          />
-        </FormControl>
-        <br />
-        <br />
+                <Grid item xs={1.8}>
+                  <FormControl>
+                    <InputLabel>Store</InputLabel>
+                    <OutlinedInput
+                      name='store'
+                      value={this.state.store}
+                      onChange={this.handleChange}
+                    />
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </Grid>
 
-        <Button onClick={this.handleClick} variant='contained'>To Tomasulo</Button>
-        {this.state.toSulo && (<Navigate to='/Tomasulo' />)}
+            <br />
+            <br />
+
+            <h1>Your Instructions</h1>
+
+            <FormControl sx={{ minHeight: 100 }}>
+              <TextareaAutosize
+                placeholder="Instructions"
+                style={{ width: 435, height: 250 }}
+                name='instructions'
+                value={this.state.instructions}
+                onChange={this.handleChange}
+              />
+            </FormControl>
+
+            <br />
+            <br />
+
+            <Button onClick={this.handleClick} variant='contained' disabled={this.state.add_sub === '' || this.state.div === '' || this.state.instructions === ''
+              || this.state.load === '' || this.state.mul === '' || this.state.store === ''}>
+              To Tomasulo
+            </Button>
+            {this.state.toSulo && (<Navigate to='/Tomasulo' />)}
+
+          </div>
+        </div>
       </div>
     )
   }
